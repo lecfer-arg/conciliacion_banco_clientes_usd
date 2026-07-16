@@ -25,6 +25,7 @@ let state = {
   bancoDataStartRow: 2,
   cliDataStartRow: 2,
   ratesByDate: {},     // 'YYYY-MM-DD' -> number|null
+  aplicado: false,     // true once user confirms rates via the Aplicar button
   matched: false,
 };
 
@@ -338,10 +339,19 @@ async function fetchOfficialRate() {
 function collectBancoDates() {
   const dates = new Set();
   state.bancoRows.forEach(b => { if (b.fecha) dates.add(dateKey(b.fecha)); });
-  return Array.from(dates).sort().map(k => {
+  const today = toDateOnly(new Date());
+  const parsed = Array.from(dates).map(k => {
     const [y, m, d] = k.split('-').map(Number);
     return new Date(y, m - 1, d);
   });
+  // Sort by proximity to today first (closest first); ties broken chronologically
+  parsed.sort((a, b) => {
+    const diffA = Math.abs(a.getTime() - today.getTime());
+    const diffB = Math.abs(b.getTime() - today.getTime());
+    if (diffA !== diffB) return diffA - diffB;
+    return a.getTime() - b.getTime();
+  });
+  return parsed;
 }
 
 async function renderRatesStep() {
@@ -349,6 +359,8 @@ async function renderRatesStep() {
   const today = toDateOnly(new Date());
   const list = document.getElementById('rates-list');
   list.innerHTML = '';
+  state.aplicado = false;
+  let todayFetchFailed = false;
 
   for (const d of dates) {
     const key = dateKey(d);
@@ -369,7 +381,9 @@ async function renderRatesStep() {
     input.addEventListener('input', () => {
       const val = parseFloat(input.value.replace(',', '.'));
       state.ratesByDate[key] = isNaN(val) ? null : val;
+      state.aplicado = false;
       updateRateStatus(key);
+      refreshAplicarAvailability();
       refreshDownloadAvailability();
     });
 
@@ -378,10 +392,15 @@ async function renderRatesStep() {
       if (val) {
         input.value = val;
         state.ratesByDate[key] = val;
+      } else {
+        todayFetchFailed = true;
       }
     }
     updateRateStatus(key);
   }
+
+  document.getElementById('btn-refetch').style.display = todayFetchFailed ? 'inline-block' : 'none';
+  refreshAplicarAvailability();
   refreshDownloadAvailability();
 }
 
@@ -398,11 +417,18 @@ function allRatesFilled() {
   return dates.length > 0 && dates.every(k => state.ratesByDate[k] !== undefined && state.ratesByDate[k] !== null);
 }
 
+function refreshAplicarAvailability() {
+  const btn = document.getElementById('btn-aplicar');
+  if (btn) btn.disabled = !allRatesFilled();
+}
+
 function refreshDownloadAvailability() {
-  const btn = document.getElementById('btn-download');
+  const btnCli = document.getElementById('btn-download-clientes');
+  const btnBco = document.getElementById('btn-download-banco');
   const warn = document.getElementById('rates-missing-warn');
-  const ok = allRatesFilled();
-  btn.disabled = !ok;
+  const ok = allRatesFilled() && state.aplicado;
+  if (btnCli) btnCli.disabled = !ok;
+  if (btnBco) btnBco.disabled = !ok;
   warn.style.display = ok ? 'none' : 'block';
 }
 
@@ -698,18 +724,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-analyze').addEventListener('click', onAnalyze);
 
-  document.getElementById('btn-bulk-apply').addEventListener('click', () => {
-    const val = parseFloat(document.getElementById('bulk-rate').value.replace(',', '.'));
-    if (isNaN(val)) return;
-    collectBancoDates().forEach(d => {
-      const key = dateKey(d);
-      if (state.ratesByDate[key] === undefined || state.ratesByDate[key] === null) {
-        state.ratesByDate[key] = val;
-        const input = document.getElementById(`rate-${key}`);
-        if (input) input.value = val;
-        updateRateStatus(key);
-      }
-    });
+  document.getElementById('btn-aplicar').addEventListener('click', () => {
+    if (!allRatesFilled()) return;
+    state.aplicado = true;
     refreshDownloadAvailability();
   });
 
@@ -722,23 +739,39 @@ document.addEventListener('DOMContentLoaded', () => {
     if (val) {
       input.value = val;
       state.ratesByDate[key] = val;
+      state.aplicado = false;
       updateRateStatus(key);
+      refreshAplicarAvailability();
       refreshDownloadAvailability();
+      document.getElementById('btn-refetch').style.display = 'none';
     }
   });
 
-  document.getElementById('btn-download').addEventListener('click', async () => {
-    const btn = document.getElementById('btn-download');
+  document.getElementById('btn-download-clientes').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-download-clientes');
+    const original = btn.textContent;
     btn.innerHTML = '<span class="spinner"></span> Generando…';
     btn.disabled = true;
 
     const cliWb = await generateClientesOutput();
-    const bancoWb = await generateBancoOutput();
     const suffix = todayFilenameSuffix();
     downloadWorkbook(cliWb, `CLIENTES_TRANSFERENCIAS_EN_USD_${suffix}.xlsx`);
+
+    btn.textContent = original;
+    refreshDownloadAvailability();
+  });
+
+  document.getElementById('btn-download-banco').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-download-banco');
+    const original = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span> Generando…';
+    btn.disabled = true;
+
+    const bancoWb = await generateBancoOutput();
+    const suffix = todayFilenameSuffix();
     downloadWorkbook(bancoWb, `BANCO_MACRO_INGRESO_EN_USD_${suffix}.xlsx`);
 
-    btn.innerHTML = '⬇ Descargar CLIENTES y BANCO (.xlsx)';
+    btn.textContent = original;
     refreshDownloadAvailability();
   });
 });

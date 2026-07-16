@@ -406,12 +406,11 @@
   <!-- STEP 2: Cotizaciones -->
   <section class="card" id="step-rates" style="display:none;">
     <h2><span class="num">2</span> Cotización BNA compra por fecha</h2>
-    <p class="hint">Se detectaron estas fechas en el extracto bancario. La de hoy se intenta autocompletar; las demás cargalas manualmente.</p>
+    <p class="hint">Se detectaron estas fechas en el extracto bancario. La más cercana a hoy aparece primero; si coincide con hoy, se autocompleta y podés editarla. Las demás cargalas manualmente.</p>
     <div id="rates-list"></div>
     <div class="actions-row">
-      <input type="text" id="bulk-rate" class="mono" placeholder="Ej: 1460" style="padding:10px;border:1px solid var(--line);border-radius:6px;width:110px;">
-      <button class="ghost small" id="btn-bulk-apply">Aplicar a fechas vacías</button>
-      <button class="gold" id="btn-refetch">🔄 Reintentar cotización de hoy</button>
+      <button class="ghost small" id="btn-refetch" style="display:none;">🔄 Reintentar cotización de hoy</button>
+      <button class="gold" id="btn-aplicar" disabled>Aplicar</button>
     </div>
   </section>
 
@@ -432,10 +431,11 @@
       </table>
     </div>
     <div class="actions-row">
-      <button class="primary" id="btn-download" disabled>⬇ Descargar CLIENTES y BANCO (.xlsx)</button>
+      <button class="primary" id="btn-download-clientes" disabled>⬇ Descargar CLIENTES</button>
+      <button class="primary" id="btn-download-banco" disabled>⬇ Descargar BANCO</button>
     </div>
     <div class="warn-box" id="rates-missing-warn" style="display:none;">
-      Completá todas las cotizaciones del paso 2 antes de descargar los archivos.
+      Completá y confirmá las cotizaciones del paso 2 con el botón Aplicar antes de descargar los archivos.
     </div>
   </section>
 
