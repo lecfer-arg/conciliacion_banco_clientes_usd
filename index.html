@@ -48,6 +48,18 @@
     text-align:center;
     overflow:hidden;
   }
+  .version-badge{
+    position:absolute;
+    top:12px;
+    right:16px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--gold-soft);
+    border:1px solid rgba(233,217,184,0.4);
+    border-radius:20px;
+    padding:3px 10px;
+    letter-spacing:0.05em;
+  }
   header.ticket::after{
     content:"";
     position:absolute;
@@ -366,7 +378,8 @@
 <body>
 
 <header class="ticket">
-  <div class="eyebrow">LECFER · Sistema de conciliación</div>
+  <div class="version-badge">v3</div>
+  <div class="eyebrow">Sistema interno de conciliación</div>
   <h1>Conciliación Banco/Clientes en Dólares</h1>
   <p>Cruce automático de transferencias declaradas contra el extracto bancario</p>
   <div class="ticket-meta">
