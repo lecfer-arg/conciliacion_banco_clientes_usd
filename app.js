@@ -219,10 +219,9 @@ function findMatch(cuitRaw, monto, bancoRows, usedSet) {
     if (availableCuit.length > 0) {
       return { nivel: 'BAJO', b: availableCuit[0], cuitOk: true, montoOk: false, fechaOk: false };
     }
-    if (byCuitMonto.length > 0) {
-      return { nivel: 'ALTO', b: byCuitMonto[0], cuitOk: true, montoOk: true, fechaOk: true };
-    }
-    return { nivel: 'BAJO', b: byCuit[0], cuitOk: true, montoOk: false, fechaOk: false };
+    // Every banco row for this CUIT is already consumed by another client row.
+    // Do NOT reuse them — fall through to the other strategies below instead
+    // of forcing a duplicate reference (that was the bug reported by Aniko).
   }
 
   // Partial CUIT (7-10 digits): search last 8 digits inside CONCEPTO
@@ -241,21 +240,18 @@ function findMatch(cuitRaw, monto, bancoRows, usedSet) {
   if (cc.length === 10) {
     for (let s = 0; s <= 9; s++) {
       const candidate = cc + s;
-      const found = bancoRows.filter(b => b.cuit === candidate);
+      const found = bancoRows.filter(b => b.cuit === candidate && !usedSet.has(b.excelRow));
       if (found.length > 0) {
-        const avail = found.filter(b => !usedSet.has(b.excelRow));
-        const availMonto = avail.filter(b => b.monto === monto);
-        if (availMonto.length > 0) {
-          return { nivel: 'BAJO', b: availMonto[0], cuitOk: false, montoOk: true, fechaOk: true };
+        const foundMonto = found.filter(b => b.monto === monto);
+        if (foundMonto.length > 0) {
+          return { nivel: 'BAJO', b: foundMonto[0], cuitOk: false, montoOk: true, fechaOk: true };
         }
-        if (avail.length > 0) {
-          return { nivel: 'BAJO', b: avail[0], cuitOk: false, montoOk: false, fechaOk: false };
-        }
+        return { nivel: 'BAJO', b: found[0], cuitOk: false, montoOk: false, fechaOk: false };
       }
     }
   }
 
-  // CUIT with 1-2 digit typo, same monto
+  // CUIT with 1-2 digit typo, same monto, among available rows
   const sameMontoAvail = bancoRows.filter(b => b.monto === monto && !usedSet.has(b.excelRow));
   for (const b of sameMontoAvail) {
     const bc = b.cuit;
@@ -267,6 +263,14 @@ function findMatch(cuitRaw, monto, bancoRows, usedSet) {
         return { nivel: 'BAJO', b, cuitOk: false, montoOk: true, fechaOk: true };
       }
     }
+  }
+
+  // Last resort: CUIT belongs to someone else entirely (e.g. a relative paid on
+  // the passenger's behalf) but the amount is unique and available in the bank
+  // file. Only auto-match when there is exactly ONE such candidate — if several
+  // banco rows share that amount, it's too ambiguous to decide automatically.
+  if (sameMontoAvail.length === 1) {
+    return { nivel: 'BAJO', b: sameMontoAvail[0], cuitOk: false, montoOk: true, fechaOk: true };
   }
 
   return { nivel: 'SIN MATCH', b: null, cuitOk: false, montoOk: false, fechaOk: false };
