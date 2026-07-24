@@ -56,8 +56,16 @@ directamente en Excel antes de enviarlo.
 Una página estática como esta corre en el navegador del usuario, sin
 servidor propio. No puede navegar la web libremente como lo haría un asistente
 con herramientas de búsqueda, y el sitio oficial del BNA bloquea el acceso
-automatizado desde el navegador (CORS). Por eso la cotización de **hoy** se
-intenta autocompletar con una API pública (que no siempre coincide al
-centavo con el cierre oficial del BNA), y las fechas anteriores requieren
-carga manual — igual que se viene haciendo hasta ahora cuando hay
-discrepancias entre fuentes.
+automatizado desde el navegador (CORS). Por eso la web usa dos APIs públicas
+con CORS habilitado:
+
+- **Fecha de hoy**: [dolarapi.com](https://dolarapi.com) — cotización en
+  vivo del dólar oficial.
+- **Fechas anteriores**: [ArgentinaDatos](https://argentinadatos.com) —
+  histórico diario del dólar oficial (referencia BCRA).
+
+Estas fuentes reflejan el dólar "oficial" de referencia, que normalmente
+coincide con el BNA compra pero no está garantizado al centavo — por eso
+**todos los campos quedan editables** y hay que confirmarlos con el botón
+Aplicar antes de descargar, igual que se viene haciendo hasta ahora cuando
+hay discrepancias entre fuentes.

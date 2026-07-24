@@ -378,7 +378,7 @@
 <body>
 
 <header class="ticket">
-  <div class="version-badge">v4</div>
+  <div class="version-badge">v7</div>
   <div class="eyebrow">Sistema interno de conciliación</div>
   <h1>Conciliación Banco/Clientes en Dólares</h1>
   <p>Cruce automático de transferencias declaradas contra el extracto bancario</p>
@@ -419,10 +419,10 @@
   <!-- STEP 2: Cotizaciones -->
   <section class="card" id="step-rates" style="display:none;">
     <h2><span class="num">2</span> Cotización BNA compra por fecha</h2>
-    <p class="hint">Se detectaron estas fechas en el extracto bancario. La más cercana a hoy aparece primero; si coincide con hoy, se autocompleta y podés editarla. Las demás cargalas manualmente.</p>
+    <p class="hint">Se detectaron estas fechas en el extracto bancario. Cada una se autocompleta con la cotización real de ese día (fuente: API pública, referencia oficial BCRA) y podés editarla si no coincide con el BNA compra.</p>
     <div id="rates-list"></div>
     <div class="actions-row">
-      <button class="ghost small" id="btn-refetch" style="display:none;">🔄 Reintentar cotización de hoy</button>
+      <button class="ghost small" id="btn-refetch" style="display:none;">🔄 Reintentar búsqueda de cotizaciones</button>
       <button class="gold" id="btn-aplicar" disabled>Aplicar</button>
     </div>
   </section>

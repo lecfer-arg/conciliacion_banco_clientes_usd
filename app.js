@@ -293,6 +293,13 @@ function runMatching() {
   pre.forEach((r, i) => {
     const row = cliRows[i];
     const ref = r.b ? r.b.referencia : null;
+    // REPETIDO only makes sense when there IS a real bank reference tying two
+    // rows together — same rule as the manual process ("no pueden compartir
+    // el mismo número de referencia del banco"). Two rows that are both
+    // unmatched (ref === null) are NOT necessarily duplicates: they could be
+    // two genuine, distinct payments that simply haven't shown up in the
+    // bank statement yet. So we never dedupe on a null reference.
+    if (ref === null || ref === undefined) return;
     const key = `${row.nro}|${row.cuitRaw}|${row.monto}|${ref}`;
     if (seen.has(key)) {
       isDup[i] = true;
@@ -340,6 +347,32 @@ async function fetchOfficialRate() {
   }
 }
 
+// Historical BNA/oficial rates, fetched once and cached in memory as a
+// dateKey -> compra map. Source: ArgentinaDatos API (public, CORS-enabled).
+// This reflects the BCRA "oficial" reference rate, which normally lines up
+// with BNA compra but isn't guaranteed to match to the peso — always editable.
+let historicalRatesCache = null;
+
+async function fetchHistoricalRates() {
+  if (historicalRatesCache) return historicalRatesCache;
+  try {
+    const res = await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial');
+    if (!res.ok) throw new Error('bad response');
+    const data = await res.json();
+    const map = {};
+    data.forEach(entry => {
+      if (entry && entry.fecha && typeof entry.compra === 'number') {
+        // API returns fecha as 'YYYY-MM-DD'
+        map[entry.fecha] = entry.compra;
+      }
+    });
+    historicalRatesCache = map;
+    return map;
+  } catch (e) {
+    return null;
+  }
+}
+
 function collectBancoDates() {
   const dates = new Set();
   state.bancoRows.forEach(b => { if (b.fecha) dates.add(dateKey(b.fecha)); });
@@ -364,7 +397,9 @@ async function renderRatesStep() {
   const list = document.getElementById('rates-list');
   list.innerHTML = '';
   state.aplicado = false;
-  let todayFetchFailed = false;
+
+  const historical = await fetchHistoricalRates();
+  const todayLive = await fetchOfficialRate(); // more real-time for today specifically
 
   for (const d of dates) {
     const key = dateKey(d);
@@ -391,19 +426,21 @@ async function renderRatesStep() {
       refreshDownloadAvailability();
     });
 
-    if (isToday) {
-      const val = await fetchOfficialRate();
-      if (val) {
-        input.value = val;
-        state.ratesByDate[key] = val;
-      } else {
-        todayFetchFailed = true;
-      }
+    // Prefer live rate for today; otherwise use the real historical value for
+    // that specific date if we found it.
+    let prefill = null;
+    if (isToday && todayLive) prefill = todayLive;
+    else if (historical && historical[key] !== undefined) prefill = historical[key];
+
+    if (prefill !== null) {
+      input.value = prefill;
+      state.ratesByDate[key] = prefill;
     }
     updateRateStatus(key);
   }
 
-  document.getElementById('btn-refetch').style.display = todayFetchFailed ? 'inline-block' : 'none';
+  const anyFetchFailed = !historical && !todayLive;
+  document.getElementById('btn-refetch').style.display = anyFetchFailed ? 'inline-block' : 'none';
   refreshAplicarAvailability();
   refreshDownloadAvailability();
 }
@@ -735,18 +772,29 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-refetch').addEventListener('click', async () => {
+    historicalRatesCache = null; // force a fresh attempt
+    const historical = await fetchHistoricalRates();
+    const todayLive = await fetchOfficialRate();
     const today = toDateOnly(new Date());
-    const key = dateKey(today);
-    const input = document.getElementById(`rate-${key}`);
-    if (!input) return;
-    const val = await fetchOfficialRate();
-    if (val) {
-      input.value = val;
-      state.ratesByDate[key] = val;
-      state.aplicado = false;
-      updateRateStatus(key);
-      refreshAplicarAvailability();
-      refreshDownloadAvailability();
+
+    collectBancoDates().forEach(d => {
+      const key = dateKey(d);
+      const isToday = key === dateKey(today);
+      let prefill = null;
+      if (isToday && todayLive) prefill = todayLive;
+      else if (historical && historical[key] !== undefined) prefill = historical[key];
+      if (prefill !== null) {
+        const input = document.getElementById(`rate-${key}`);
+        if (input) input.value = prefill;
+        state.ratesByDate[key] = prefill;
+        updateRateStatus(key);
+      }
+    });
+
+    state.aplicado = false;
+    refreshAplicarAvailability();
+    refreshDownloadAvailability();
+    if (historical || todayLive) {
       document.getElementById('btn-refetch').style.display = 'none';
     }
   });
